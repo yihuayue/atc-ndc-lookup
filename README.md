@@ -28,28 +28,6 @@ N03A uses the bundled WHO 2026 substance inventory plus any additional current R
 
 See [the SOP](ATC_to_NDC_SOP.md) for the flowchart, API calls, automatic checks, and zero-result logic.
 
-## Publish on GitHub Pages
-
-Start with [START_HERE.md](START_HERE.md) for the upload steps, Pages settings, website address, and troubleshooting.
-
-Use a separate repository such as **atc-ndc-lookup** for this ATC tool, or host it in a dedicated subfolder. The existing **ndc-lookup** project is the separate drug-name/openFDA tool.
-
-For a new repository:
-
-1. Create a public repository, then upload the extracted contents of the ATC GitHub Pages package directly into its top level.
-2. Ensure the top level includes index.html, styles.css, app.js, engine.js, n03a.json, README.md, ATC_to_NDC_SOP.md, START_HERE.md, and .nojekyll.
-3. Open **Settings → Pages**, choose **Deploy from a branch**, then **main** and **/(root)**, and select **Save**.
-4. After successful deployment, use the exact live address shown by GitHub.
-5. Test N03AX14, the API-response links, and both CSV exports.
-
-This package does not publish itself or change an existing GitHub repository.
-
-## Development
-
-The GitHub package contains ready-to-host static files and requires no build command. In the full development project, run **node serve.mjs** for the local preview at port 4173. After edits, run **node build-portable.mjs**, then **npm test**. The dist folder is the hosting output; development scripts are not included in this upload package.
-
-Browser automation tools **lookup_atc** and **read_atc_results** use the same page and API workflow. Only an ATC code is required; lookup_atc also accepts coverage=current or coverage=history.
-
 ## Sources
 
 - [ATC identifier to RxCUI](https://lhncbc.nlm.nih.gov/RxNav/APIs/api-RxNorm.findRxcuiById.html)
