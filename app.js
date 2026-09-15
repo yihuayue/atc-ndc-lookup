@@ -1,4 +1,4 @@
-import {API,RX,coverageLabel,ndcStatus,associationPeriod,normalizeAtc,discover,enrichSubstance,retrieveNDCs,parallel,csv,consolidate,rowStatus,substanceTable,ndcTable} from './engine.js';
+import {API,RX,coverageLabel,ndcStatus,associationPeriod,normalizeAtc,discover,enrichSubstance,retrieveNDCs,parallel,csv,consolidate,rowStatus,mappingDiagnostic,substanceTable,ndcTable} from './engine.js';
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const link=(url,label)=>'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+esc(label)+'</a>';
@@ -8,6 +8,14 @@ const month=value=>value?value.slice(0,4)+'-'+value.slice(4):'Unknown';
 function associationHTML(n){
  const p=associationPeriod(n.historyEvidence);
  return '<span class="tag'+(!n.current?' warn':'')+'">'+esc(ndcStatus(n))+'</span>'+(n.historyEvidence.length?'<div class="subtle">First: '+esc(month(p.first))+'<br>Last: '+esc(month(p.last))+'</div><details><summary>Association details</summary>'+n.historyEvidence.map(e=>'<p class="subtle">Product '+esc(e.productRxcui)+' · Associated RxCUI '+esc(e.associatedRxcui)+' · '+esc(e.route)+'<br>'+esc(month(e.startDate))+' → '+esc(month(e.endDate))+'</p>').join('')+'</details>':'<div class="subtle">'+(state.coverage==='current'?'History not requested':'No dated history returned')+'</div>');
+}
+
+function mappingHTML(row){
+ const diagnostic=mappingDiagnostic(row);
+ if(diagnostic.step==='Complete')return '';
+ const outcome=diagnostic.sources.length===1?link(diagnostic.sources[0].url,diagnostic.outcome):esc(diagnostic.outcome);
+ const responses=diagnostic.sources.length===1?'':diagnostic.sources.map(s=>'<div>'+link(s.url,s.label+' response')+'</div>').join('');
+ return '<p class="subtle"><strong>'+esc(diagnostic.step)+'</strong><br>'+outcome+'</p>'+(diagnostic.sources.length>3?'<details><summary>Step API responses ('+diagnostic.sources.length+')</summary>'+responses+'</details>':responses);
 }
 
 function runStatus(){return !state.started?'Ready':state.busy?'In progress':state.stopped||state.error||state.rows.some(r=>r.errors.length||!r.done)?'Partial':'Completed';}
@@ -24,10 +32,10 @@ function render(){
  $('export-substances').disabled=!state.rows.length;$('export-ndcs').disabled=!state.rows.length;
  $('substances-panel').hidden=state.tab!=='substances';$('ndcs-panel').hidden=state.tab!=='ndcs';
  for(const name of ['substances','ndcs']){$('tab-'+name).setAttribute('aria-selected',String(state.tab===name));$('tab-'+name).tabIndex=state.tab===name?0:-1;}
- const rows=state.rows.filter(r=>[r.atc,r.name,...r.concepts.flatMap(c=>[c.rxcui,c.name]),rowStatus(r)].join(' ').toLowerCase().includes(term));
+ const rows=state.rows.filter(r=>[r.atc,r.name,...r.concepts.flatMap(c=>[c.rxcui,c.name]),rowStatus(r),mappingDiagnostic(r).step,mappingDiagnostic(r).outcome].join(' ').toLowerCase().includes(term));
  $('substances-body').innerHTML=rows.map(r=>'<tr><td><strong class="code">'+esc(r.atc)+'</strong><div>'+esc(r.name||'Substance name not returned')+'</div></td><td>'+
   (r.concepts.map(c=>'<div class="concept-item"><strong class="code">'+link(c.source,c.rxcui)+'</strong> <span class="tag">'+esc(c.tty||'No active properties')+'</span><div>'+esc(c.name)+'</div></div>').join('')||'<span class="subtle">'+(r.enriched?'—':'Pending')+'</span>')+
-  '</td><td><strong>'+r.products.length.toLocaleString()+'</strong> products<br><button class="row-button" data-ndc-atc="'+esc(r.atc)+'" '+(r.ndcs.length?'':'disabled')+'>'+new Set(r.ndcs.map(n=>n.ndc)).size.toLocaleString()+' NDCs</button>'+(state.coverage==='history'?'<div class="subtle">'+new Set(r.ndcs.filter(n=>n.current).map(n=>n.ndc)).size+' current · '+(r.currentLookupComplete?consolidate([r]).filter(n=>!n.current).length:'?')+' history API only</div>':'')+'</td><td class="status-cell"><span class="tag'+(r.errors.length?' warn':'')+'">'+esc(rowStatus(r))+'</span>'+(r.errors.length?'<p class="subtle">'+esc([...new Set(r.errors)].join(' | '))+'</p>':'')+'<div>'+link(r.mappingSource,'ATC API response')+'</div></td></tr>').join('')||'<tr><td colspan="4" class="nodata">No matching substances.</td></tr>';
+  '</td><td><strong>'+r.products.length.toLocaleString()+'</strong> products<br><button class="row-button" data-ndc-atc="'+esc(r.atc)+'" '+(r.ndcs.length?'':'disabled')+'>'+new Set(r.ndcs.map(n=>n.ndc)).size.toLocaleString()+' NDCs</button>'+(state.coverage==='history'?'<div class="subtle">'+new Set(r.ndcs.filter(n=>n.current).map(n=>n.ndc)).size+' current · '+(r.currentLookupComplete?consolidate([r]).filter(n=>!n.current).length:'?')+' history API only</div>':'')+'</td><td class="status-cell"><span class="tag'+(r.errors.length?' warn':'')+'">'+esc(rowStatus(r))+'</span>'+(r.errors.length?'<p class="subtle">'+esc([...new Set(r.errors)].join(' | '))+'</p>':'')+mappingHTML(r)+'</td></tr>').join('')||'<tr><td colspan="4" class="nodata">No matching substances.</td></tr>';
  const filtered=ndcs.filter(n=>[n.ndc,n.atc,n.substance,...n.productRxcuis,...n.productNames].join(' ').toLowerCase().includes(term));
  const pages=Math.max(1,Math.ceil(filtered.length/50));state.page=Math.min(state.page,pages-1);const slice=filtered.slice(state.page*50,state.page*50+50);
  $('ndcs-body').innerHTML=slice.map(n=>'<tr><td><strong class="code">'+esc(n.ndc)+'</strong></td><td><span class="code">'+esc(n.atc)+'</span><div>'+esc(n.substance)+'</div></td><td>'+n.productRxcuis.map(id=>link(RX+'/rxcui/'+id+'/properties.json',id)).join('<br>')+ '<div class="subtle">'+esc(n.termTypes.join(', '))+'</div></td><td>'+n.productNames.map(esc).join('<br>')+'</td><td>'+associationHTML(n)+'</td><td>'+n.sources.map(url=>link(url,'Current API')).concat(n.historySources.map(url=>link(url,'History API'))).join('<br>')+'</td></tr>').join('')||'<tr><td colspan="6" class="nodata">'+(state.busy?'NDCs will appear as product API calls finish.':'No NDCs found.')+'</td></tr>';
@@ -55,7 +63,7 @@ async function lookup(code,coverage=$('coverage').value){
 function download(filename,text){
  const url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));
  const dialog=document.createElement('dialog');dialog.className='export-dialog';dialog.setAttribute('aria-label','Export CSV');
- dialog.innerHTML='<h2>Your CSV is ready</h2><p class="export-name"></p><p>Download the file, or copy its contents. Import NDC columns as text to preserve leading zeros.</p><div class="export-actions"><a class="secondary export-file">Download CSV</a><button class="secondary export-copy" type="button">Copy CSV</button><button class="secondary export-close" type="button">Close</button></div><p class="export-status subtle" role="status"></p><details><summary>View or select CSV text</summary><textarea aria-label="CSV contents" readonly spellcheck="false"></textarea></details>';
+ dialog.innerHTML='<h2>Your CSV is ready</h2><p class="export-name"></p><p>NDC leading zeros are preserved in the CSV. In Excel, import the NDC column as <strong>Text</strong>; opening a CSV directly can remove them.</p><div class="export-actions"><a class="secondary export-file">Download CSV</a><button class="secondary export-copy" type="button">Copy CSV</button><button class="secondary export-close" type="button">Close</button></div><p class="export-status subtle" role="status"></p><details><summary>View or select CSV text</summary><textarea aria-label="CSV contents" readonly spellcheck="false"></textarea></details>';
  dialog.querySelector('.export-name').textContent=filename+' · '+(text.split('\r\n').length-1).toLocaleString()+' data rows';
  const a=dialog.querySelector('.export-file');a.href=url;a.download=filename;
  const area=dialog.querySelector('textarea');area.value=text;
@@ -77,6 +85,6 @@ const context=navigator.modelContext||document.modelContext;
 if(context?.registerTool){
  const lifecycle=new AbortController(),register=tool=>{try{Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{}};
  register({name:'lookup_atc',description:'Map an ATC code through active ingredient and product RxCUIs to current and optionally historical NDCs using RxNorm APIs. Updates the visible page.',inputSchema:{type:'object',properties:{code:{type:'string'},coverage:{type:'string',enum:['current','history'],description:'history includes current NDCs and historical associations; default is the page selection.'}},required:['code'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute:async args=>({content:[{type:'text',text:JSON.stringify(await lookup(args.code,args.coverage))}]})});
- register({name:'read_atc_results',description:'Read the ATC summary and a sample of NDC mappings with current status and historical evidence.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:async()=>({content:[{type:'text',text:JSON.stringify({...summary(),substances:state.rows.map(r=>({atc:r.atc,name:r.name,concepts:r.concepts,productCount:r.products.length,uniqueNdcCount:new Set(r.ndcs.map(n=>n.ndc)).size,status:rowStatus(r),errors:r.errors})),ndcSample:records().slice(0,20)})}]})});
+ register({name:'read_atc_results',description:'Read the ATC summary and a sample of NDC mappings with current status and historical evidence.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:async()=>({content:[{type:'text',text:JSON.stringify({...summary(),substances:state.rows.map(r=>({atc:r.atc,name:r.name,concepts:r.concepts,productCount:r.products.length,uniqueNdcCount:new Set(r.ndcs.map(n=>n.ndc)).size,status:rowStatus(r),mappingStep:mappingDiagnostic(r),errors:r.errors})),ndcSample:records().slice(0,20)})}]})});
  addEventListener('pagehide',()=>lifecycle.abort(),{once:true});
 }

@@ -9,7 +9,7 @@ Convert Anatomical Therapeutic Chemical (ATC) codes to current and historical Na
 1. Enter a level 3, 4, or 5 ATC code, such as **N03A**, **N03AX**, or **N03AX14**.
 2. Choose **Current only** for NDCs in the current RxNorm release, or **Current + historical** (default) to also retrieve historical associations.
 3. Select **Find NDCs** and wait for the lookup to finish.
-4. Review the results. For **Partial** results, review the reported errors and rerun as needed before treating the results as complete.
+4. Review **Status · mapping step**. For a result with no NDCs, it shows where the mapping stopped and links to that step's response. For **Partial** results, review the failed requests and rerun as needed.
 
 ### 2. Mapping procedure
 
@@ -29,12 +29,23 @@ RxCUI is the RxNorm concept identifier.
 
 ### 3. Export results
 
-- **ATC summary CSV:** one row per level-5 substance, with product and NDC counts and lookup status.
+- **ATC summary CSV:** one row per level-5 substance, with product and NDC counts, lookup status, mapping step, step outcome, and relevant API links.
 - **NDC mapping CSV:** one row per ATC–NDC pair, with ingredient and product identifiers, current association status, source links, and available historical dates and evidence.
 
-Both files include the RxNorm release, retrieval time, and run status. Exports include all retrieved rows, regardless of the display filter. Import NDC columns as **text** to preserve leading zeros.
+Both files include the RxNorm release, retrieval time, and run status. Exports include all retrieved rows, regardless of the display filter. NDCs retain their leading zeros in the page and CSV.
+
+**Excel:** Use **Data → From Text/CSV** and set the NDC column to **Text** before loading. Opening a CSV directly can remove leading zeros. See [Microsoft's import guidance](https://support.microsoft.com/en-us/office/keeping-leading-zeros-and-large-numbers-1bf7b935-36e1-4985-842f-5dfa51f85fe7).
 
 ## Interpreting results
+
+| Mapping step | What stopped the mapping |
+| --- | --- |
+| ATC → RxCUI | No RxCUI was returned for the ATC code. |
+| Ingredient check | Returned RxCUIs did not provide an active ingredient concept. |
+| Ingredient → product | No related drug products were returned. |
+| Product → NDC | Products were found, but the selected APIs returned no NDCs. |
+
+A completed request with no matches is a mapping gap. A failed or interrupted request is marked **Partial**, with the affected step identified.
 
 - **Current association:** the current API returned the code. **History API only:** historical results returned it and completed current checks did not. **Current check incomplete:** those checks failed or are unfinished.
 - Historical dates describe RxNorm association releases, not marketing or dispensing dates. All returned dates are included. First and last dates are summary bounds; individual intervals remain in the exported evidence.
