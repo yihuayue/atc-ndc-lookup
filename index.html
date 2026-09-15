@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Convert ATC to NDC | Medication mapping</title>
+<meta name="description" content="Map ATC codes to current and historical NDCs through RxNorm, and export documented mapping tables.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23144549'/%3E%3Cpath d='M9 20h20m-7-7 7 7-7 7' stroke='%23fff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body id="top">
+<header>
+ <a class="brand" href="#top"><span class="brand-icon" aria-hidden="true">↗</span>Medication mapping <span class="divider" aria-hidden="true">/</span><span class="brand-sub">ATC to NDC</span></a>
+ <a href="#workflow">How it works ↗</a>
+</header>
+<main>
+ <div class="intro"><p class="eyebrow">ATC-BASED DRUG LOOKUP</p><h1>Convert ATC to NDC</h1><p>Enter an ATC code. Get NDCs from RxNorm. Export CSV.</p></div>
+ <div class="workspace">
+  <section class="panel input-panel" aria-labelledby="input-title">
+   <div class="section-head"><h2 id="input-title">Your ATC lookup</h2></div>
+   <form id="lookup-form">
+    <div class="field"><label for="atc">ATC code</label><input id="atc" name="atc" value="N03AX14" placeholder="e.g. N03A, N03AX, or N03AX14" autocomplete="off" spellcheck="false" required aria-describedby="atc-help"><p class="hint" id="atc-help">Enter a level 3, 4, or 5 ATC code.</p></div>
+    <div class="presets"><span>Examples</span><button type="button" data-example="N03A">N03A</button><button type="button" data-example="N03AX">N03AX</button><button type="button" data-example="N03AX14">N03AX14</button></div>
+    <div class="field coverage-field"><label for="coverage">NDC coverage</label><select id="coverage" aria-describedby="coverage-help"><option value="history" selected>Current + historical</option><option value="current">Current only</option></select><p class="hint" id="coverage-help">Historical results include recorded RxNorm association dates.</p></div>
+    <div class="source-note"><strong>Data source: NLM RxNorm</strong><p>Matches ATC codes to drug products and their NDCs through the RxNorm APIs.</p></div>
+    <div class="actions"><button class="primary" id="lookup" type="submit">Find NDCs <span aria-hidden="true">↗</span></button><button id="cancel" type="button" hidden>Stop</button></div>
+   </form>
+   <p id="message" role="status" aria-live="polite">Ready for your ATC code.</p>
+   <div id="progress-box" hidden><div class="progress-label"><span id="progress-text"></span><span id="progress-count"></span></div><progress id="progress" max="100" value="0"></progress></div>
+  </section>
+  <section class="results-panel" aria-labelledby="results-heading">
+   <div class="section-head"><div><p class="eyebrow">MAPPING RESULTS</p><h2 id="results-heading">Results &amp; export</h2></div><div class="exports"><button id="export-substances" class="secondary" type="button" disabled>Export ATC summary CSV</button><button id="export-ndcs" class="secondary" type="button" disabled>Export NDC mapping CSV</button></div></div>
+   <div class="metrics"><div><strong id="substance-count">0</strong><span>ATC substances</span></div><div><strong id="product-count">0</strong><span>Drug products</span></div><div><strong id="ndc-count">0</strong><span>Unique NDCs</span></div><div><strong id="zero-count">0</strong><span>Substances with 0 NDCs</span></div></div>
+   <div id="empty" class="empty"><div class="empty-icon" aria-hidden="true">⇄</div><h3>Your mapping starts here</h3><div class="empty-steps"><span>1 · Enter code</span><span>2 · Find NDCs</span><span>3 · Export tables</span></div></div>
+   <div id="results" hidden>
+    <div class="run-heading"><p class="eyebrow" id="result-code"></p><h3 id="result-title">ATC lookup</h3><p id="result-meta" class="subtle"></p></div>
+    <div class="table-controls"><div class="tabs" role="tablist" aria-label="Results view"><button role="tab" id="tab-substances" aria-selected="true" aria-controls="substances-panel">ATC summary</button><button role="tab" id="tab-ndcs" aria-selected="false" aria-controls="ndcs-panel">NDC mapping</button></div><input id="filter" type="search" aria-label="Filter results" placeholder="Filter results…"></div>
+    <div id="substances-panel" role="tabpanel" aria-labelledby="tab-substances"><div class="table-wrap"><table><thead><tr><th>ATC · substance</th><th>Ingredient RxCUI · name</th><th>Products / NDCs</th><th>Status</th></tr></thead><tbody id="substances-body"></tbody></table></div></div>
+    <div id="ndcs-panel" role="tabpanel" aria-labelledby="tab-ndcs" hidden><p class="table-note">Dates describe RxNorm associations. Current and historical sources are listed for each code.</p><div class="table-wrap"><table><thead><tr><th>NDC11</th><th>ATC · substance</th><th>Product RxCUI</th><th>Drug product</th><th>Association · dates</th><th>API sources</th></tr></thead><tbody id="ndcs-body"></tbody></table></div><div class="pagination"><span id="page-label"></span><div><button id="prev" type="button">Previous</button><button id="next" type="button">Next</button></div></div></div>
+   </div>
+  </section>
+ </div>
+ <section id="workflow" class="method" aria-labelledby="workflow-title">
+  <p class="eyebrow">THE MAPPING LOGIC</p><h2 id="workflow-title">ATC codes → RxNorm → NDCs</h2>
+  <div class="flow">
+   <div class="flow-input">Level 3, 4, or 5 ATC code</div>
+   <ol class="flow-steps">
+    <li><span class="route-label">01 · EXPAND</span><h3>Find the substances</h3><p>Expand a class into level-5 codes, or use the substance code you entered.</p></li>
+    <li><span class="route-label">02 · MATCH</span><h3>Get ingredient RxCUIs</h3><p>Match each ATC code to RxNorm and check its ingredient concept automatically.</p></li>
+    <li><span class="route-label">03 · CONNECT</span><h3>Find drug products</h3><p>Retrieve related generic drugs, branded drugs and packs through RxNorm.</p></li>
+    <li><span class="route-label">04 · COLLECT</span><h3>Get the NDCs</h3><p>Call the current NDC API and, when selected, the historical NDC API. Combine duplicate codes per ATC.</p></li>
+   </ol>
+   <div class="flow-output">ATC summary + NDC mapping · API source links included</div>
+  </div>
+  <p class="method-note">Current and historical describe RxNorm associations, not marketing dates. Historical coverage follows currently related products and may miss older products.</p>
+  <details class="coverage">
+   <summary>API details &amp; coverage</summary>
+   <div id="method-details">
+    <div class="api-list">
+     <p><strong>Ingredients:</strong> <a href="https://lhncbc.nlm.nih.gov/RxNav/APIs/api-RxNorm.findRxcuiById.html" target="_blank" rel="noopener noreferrer">findRxcuiById</a> matches the ATC code. <a href="https://lhncbc.nlm.nih.gov/RxNav/APIs/api-RxNorm.getRxConceptProperties.html" target="_blank" rel="noopener noreferrer">Concept properties</a> confirm active IN, PIN or MIN ingredients.</p>
+     <p><strong>Products:</strong> <a href="https://lhncbc.nlm.nih.gov/RxNav/APIs/api-RxNorm.getRelatedByType.html" target="_blank" rel="noopener noreferrer">getRelatedByType</a> retrieves SCD, SBD, GPCK and BPCK products, including combinations. These are ingredient-linked products; their exact ATC classification is not independently verified.</p>
+     <p><strong>NDCs:</strong> <a href="https://lhncbc.nlm.nih.gov/RxNav/APIs/api-RxNorm.getNDCs.html" target="_blank" rel="noopener noreferrer">getNDCs</a> supplies current codes. <a href="https://lhncbc.nlm.nih.gov/RxNav/APIs/api-RxNorm.getAllHistoricalNDCs.html" target="_blank" rel="noopener noreferrer">getAllHistoricalNDCs</a> with history=2 adds dated associations, including those inherited from remapped products.</p>
+    </div>
+    <p><strong>Result labels:</strong> “Current association” means getNDCs returned the code. “History API only” means it appeared only in historical results for the retrieved products. Failed or unfinished current checks are labeled incomplete.</p>
+    <p><strong>Dates:</strong> First and last dates are RxNorm release months. All returned historical associations are included, regardless of date.</p>
+    <p><strong>ATC inventory:</strong> N03A uses the WHO 2026 substance list. Other classes use <a href="https://lhncbc.nlm.nih.gov/RxNav/APIs/api-RxClass.getClassMembers.html" target="_blank" rel="noopener noreferrer">current RxClass members</a> and may omit unmapped substances. Former N03A codes are excluded from class expansion.</p>
+    <p><strong>Exports:</strong> Both CSVs include all retrieved rows, source links and lookup status. Import NDCs as text to preserve leading zeros.</p>
+   </div>
+  </details>
+ </section>
+</main>
+<footer><span>ATC to NDC · NLM RxNorm</span><span>Queries go to NLM · Results stay in your browser</span></footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>
